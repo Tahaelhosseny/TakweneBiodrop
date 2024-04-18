@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Page from "@components/Page";
 import PageHead from "@components/PageHead";
 import Badge from "@components/Badge";
@@ -11,19 +11,59 @@ import axios from 'axios';
 export default function Search() {
   const [searchTerm, setSearchTerm] = useState("");
   const [releases, setReleases] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const searchInputRef = useRef(null);
+  const loaderRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading) {
+        loadMoreReleases();
+      }
+    }, { threshold: 1 });
+
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current);
+    }
+
+    return () => {
+      if (loaderRef.current) {
+        observer.unobserve(loaderRef.current);
+      }
+    };
+  }, [hasMore, loading]);
+
+  const loadMoreReleases = async () => {
+    try {
+      setLoading(true);
+      const nextPage = currentPage + 1;
+      const response = await axios.get(`/api/release/searchReleases?page=${nextPage}&query=${searchTerm}`);
+      setReleases(prevReleases => [...prevReleases, ...response.data]);
+      setCurrentPage(nextPage);
+      console.error(nextPage);
+      setHasMore(response.data.length > 0);
+    } catch (error) {
+      console.error("Error loading more releases:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearchSubmit = async (e) => {
     e.preventDefault();
     if (searchTerm) {
       try {
-        const response = await axios.get('/api/release/searchReleases?query='+searchTerm);
-        setReleases(response.data); // Assuming response.data is an array of releases
-        console.error(releases);
-      } catch (error) {setReleases([]);}
-        
-      
+        const response = await axios.get(`/api/release/searchReleases?page=1&query=${searchTerm}`);
+        setReleases(response.data);
+        setCurrentPage(1);
+        setHasMore(response.data.length > 0);
+      } catch (error) {
+        console.error("Error searching releases:", error);
+        setReleases([]);
+      }
     } else {
       alert("Search term is empty");
     }
@@ -60,7 +100,7 @@ export default function Search() {
           </h2>
         )}
 
-<ul
+        <ul
           role="list"
           className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
         >
@@ -75,6 +115,10 @@ export default function Search() {
             </li>
           ))}
         </ul>
+        
+        {loading && <p>Loading...</p>}
+        {!hasMore && <p>No more releases to load.</p>}
+        <div ref={loaderRef}></div>
       </Page>
     </>
   );
