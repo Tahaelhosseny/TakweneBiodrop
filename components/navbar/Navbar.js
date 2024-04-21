@@ -13,7 +13,6 @@ import { FaGithub } from "react-icons/fa6";
 import SunIcon from "@heroicons/react/20/solid/SunIcon";
 import MoonIcon from "@heroicons/react/20/solid/MoonIcon";
 import { BASE_GITHUB_PROJECT_URL } from "@constants/index";
-import LogoWide from "@public/logos/LogoWide";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -114,7 +113,7 @@ export default function Navbar() {
               width={40}
               height={40}
               onClick={() => setIsOpen(false)}
-              src={`https://github.com/${session.username}.png`}
+              src={`${session.image}`}
               alt="Account"
             />
           </Link>

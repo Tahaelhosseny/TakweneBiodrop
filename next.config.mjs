@@ -34,6 +34,10 @@ const nextConfig = {
         protocol: "https",
         hostname: "avatars.dicebear.com",
       },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
     ],
     formats: ["image/webp"],
   },

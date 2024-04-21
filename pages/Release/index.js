@@ -15,9 +15,14 @@ import { authOptions } from "/pages/api/auth/[...nextauth]";
 
 
 export async function getServerSideProps(context) {
+
+  logger.info('eeeeeeeeeeeeeeeeeeeeeee');
+
   const session = await getServerSession(context.req, context.res, authOptions);
+  logger.info('dddddddddddddddddddddd');
+
   const username = session.username;
-  
+  logger.info('vvvvvvvvvvvvvvvvvvvvvvvv');
   let profile = {};
   try {
     profile = (await getUserApi(context.req, context.res, username)).profile;

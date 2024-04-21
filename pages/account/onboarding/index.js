@@ -25,6 +25,7 @@ import Alert from "@components/Alert";
 
 export async function getServerSideProps(context) {
   const session = await getServerSession(context.req, context.res, authOptions);
+  
   const username = session.username;
 
   let profile = {};

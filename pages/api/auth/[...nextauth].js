@@ -1,5 +1,4 @@
 import NextAuth from "next-auth";
-import GithubProvider from "next-auth/providers/github";
 import { ObjectId } from "bson";
 
 import { serverEnv } from "@config/schemas/serverSchema";
@@ -12,8 +11,179 @@ import {
   associateProfileWithAccount,
 } from "../account/account";
 import logger from "@config/logger";
+import GoogleProvider from "next-auth/providers/google";
+
+
+
 
 export const authOptions = {
+  adapter: DbAdapter(connectMongo),
+  providers: [
+    GoogleProvider({
+      clientId: serverEnv.GOOGLE_CLIENT_ID,
+      clientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
+      scope: "profile email",
+      profile(profile) {
+        return {
+          id: profile.sub.toString(),
+          name: profile.given_name,
+          username : profile.email,
+          email: profile.email,
+          image: profile.picture,
+        };
+      },
+    }),
+  ],
+  session: {
+    strategy: "jwt",
+  },
+  callbacks: {
+    async signIn({ user, profile: googleProfile }) {
+      await connectMongo();
+      await Account.findOneAndUpdate(
+        { userId: user._id },
+        {
+          Google: {
+            company: googleProfile.hd
+          },
+        },
+        { upsert: true },
+      );
+      return true;
+    },
+    async redirect({ baseUrl }) {
+
+      return `${baseUrl}/`;
+    },
+    async jwt({ token, account, profile }) {
+
+      if (account) {
+        // Add logic for JWT token handling
+        token.accessToken = account.access_token;
+        token.id = profile.id;
+        token.username = profile.login;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+
+      await connectMongo();
+      // Add logic for session handling
+      session.accessToken = token.accessToken;
+      session.user.id = token.sub;
+      session.username = token.email;
+      session.image = token.picture;
+
+      const user = await User.findOne({ _id: token.sub });
+      if (user) {
+        session.accountType = user.type;
+        session.stripeCustomerId = user.stripeCustomerId;
+      } else {
+        session.accountType = "free";
+        session.stripeCustomerId = null;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/auth/signin",
+  },
+  events: {
+    async signIn({ profile: googleProfile }) {
+
+      await connectMongo();
+      const username = googleProfile.email;
+      const defaultLink = (profileId) => ({
+        username,
+        name: "Google",
+        url: `https://plus.google.com/${username}`,
+        icon: "FaGoogle",
+        isEnabled: true,
+        isPinned: true,
+        animation: "glow",
+        profile: new ObjectId(profileId),
+      });
+      
+      // Add logic for events related to sign-in with Google
+
+      // associate BioDrop profile to account
+      const account = await getAccountByProviderAccountId(googleProfile.id);
+      const user = await User.findOne({ _id: account.userId });
+
+      // create basic profile if it doesn't exist
+      let profile = await Profile.findOne({ username });
+      if (!profile) {
+        logger.info("profile not found for: ", username);
+        profile = await Profile.findOneAndUpdate(
+          {
+            username,
+          },
+          {
+            source: "database",
+            name: googleProfile.name,
+            bio: "Have a look at my BioDrop Profile!",
+            user: account.userId,
+          },
+          {
+            new: true,
+            upsert: true,
+          },
+        );
+        const link = await Link.create([defaultLink(profile._id)], {
+          new: true,
+        });
+        profile = await Profile.findOneAndUpdate(
+          { username },
+          {
+            $push: { links: new ObjectId(link[0]._id) },
+          },
+          { new: true },
+        );
+      }
+
+      // associate User to Profile
+      await associateProfileWithAccount(account, profile._id);
+
+      // Create a stripe customer for the user with their email address
+      if (!user.stripeCustomerId) {
+        logger.info("user stripe customer id not found for: ", user.email);
+
+        const customer = await stripe.customers.create({
+          email: user.email,
+          name: user.name,
+          metadata: {
+            userId: account.userId,
+            google: username,
+          },
+        });
+
+        await User.findOneAndUpdate(
+          { _id: new ObjectId(account.userId) },
+          { stripeCustomerId: customer.id, type: "free" },
+        );
+      }
+
+      // add google link to profile if no links exist
+      if (profile.links.length === 0) {
+        logger.info("no links found for: ", username);
+        const link = await Link.create([defaultLink(profile._id)], {
+          new: true,
+        });
+        await Profile.findOneAndUpdate(
+          { username },
+          {
+            $push: { links: new ObjectId(link[0]._id) },
+          },
+        );
+      }
+    },
+  },
+};
+
+export default NextAuth(authOptions);
+
+
+/*export const authOptions = {
   adapter: DbAdapter(connectMongo),
   providers: [
     GithubProvider({
@@ -171,6 +341,6 @@ export const authOptions = {
       }
     },
   },
-};
+};*/
 
-export default NextAuth(authOptions);
+//export default NextAuth(authOptions);

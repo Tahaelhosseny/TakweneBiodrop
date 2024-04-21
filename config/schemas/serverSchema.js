@@ -19,6 +19,8 @@ const envSchema = z.object({
   VERCEL_PROJECT_ID: z.string().optional(),
   VERCEL_TEAM_ID: z.string().optional(),
   VERCEL_AUTH_TOKEN: z.string().optional(),
+  GOOGLE_CLIENT_ID : z.string().optional(),
+  GOOGLE_CLIENT_SECRET : z.string().optional()
 });
 
 const serverEnv = envSchema.safeParse(process.env);

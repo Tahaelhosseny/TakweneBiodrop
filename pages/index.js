@@ -1,3 +1,4 @@
+import { authOptions } from "/pages/api/auth/[...nextauth]";
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { FaArrowUpRightFromSquare } from "react-icons/fa6";
@@ -11,13 +12,22 @@ import PageHead from "@components/PageHead";
 import Page from "@components/Page";
 import { getUserApi } from "pages/api/profiles/[username]";
 import { PROJECT_NAME } from "@constants/index";
-import { authOptions } from "/pages/api/auth/[...nextauth]";
 
 
 export async function getServerSideProps(context) {
+ 
+
   const session = await getServerSession(context.req, context.res, authOptions);
+  if (!session) {
+    return {
+      redirect: {
+        destination: '/auth/signin',
+        permanent: false,
+      },
+    };
+  }
   const username = session.username;
-  
+  logger.info('vvvvvvvvvvvvvvvvvvvvvvvv');
   let profile = {};
   try {
     profile = (await getUserApi(context.req, context.res, username)).profile;
